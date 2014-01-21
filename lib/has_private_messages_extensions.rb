@@ -3,7 +3,7 @@ module Professionalnerd #:nodoc:
     module HasPrivateMessagesExtensions #:nodoc:
       def self.included(base) #:nodoc:
         base.extend ActMethods
-      end 
+      end
 
       module ActMethods
         # Sets up a model have private messages, defining the child class as specified in :class_name (typically "Messages").
@@ -16,27 +16,29 @@ module Professionalnerd #:nodoc:
           unless included_modules.include? InstanceMethods
             class_attribute :options
             table_name = options[:class_name].constantize.table_name
-            
+
             has_many :sent_messages,
-                     :class_name => options[:class_name],
-                     :foreign_key => 'sender_id',
-                     :include => :recipient,
-                     :order => "#{table_name}.created_at DESC",
-                     :conditions => ["#{table_name}.sender_deleted = ?", false]
+                     -> { includes(:recipient).
+                       where("#{table_name}.sender_deleted = ?", false).
+                       order("#{table_name}.created_at DESC")
+                     },
+                     class_name: options[:class_name],
+                     foreign_key: 'sender_id'
 
             has_many :received_messages,
-                     :class_name => options[:class_name],
-                     :foreign_key => 'recipient_id',
-                     :include => :sender,
-                     :order => "#{table_name}.created_at DESC",
-                     :conditions => ["#{table_name}.recipient_deleted = ?", false]
+                     -> { includes(:sender).
+                       where("#{table_name}.recipient_deleted = ?", false).
+                       order("#{table_name}.created_at DESC")
+                     },
+                     class_name: options[:class_name],
+                     foreign_key: 'recipient_id'
 
-            extend ClassMethods 
-            include InstanceMethods 
-          end 
+            extend ClassMethods
+            include InstanceMethods
+          end
           self.options = options
-        end 
-      end 
+        end
+      end
 
       module ClassMethods #:nodoc:
         # None yet...
@@ -45,17 +47,19 @@ module Professionalnerd #:nodoc:
       module InstanceMethods
         # Returns true or false based on if this user has any unread messages
         def unread_messages?
-          unread_message_count > 0 ? true : false
+          unread_message_count > 0
         end
-        
+
         # Returns the number of unread messages for this user
         def unread_message_count
-          eval options[:class_name] + '.count(:conditions => ["recipient_id = ? AND read_at IS NULL and recipient_deleted = ?", self, false])'
+          options[:class_name].constantize.
+            where("recipient_id = ? AND read_at IS NULL AND recipient_deleted = ?", self, false).
+            count
         end
-      end 
+      end
     end
   end
-end 
+end
 
 if defined? ActiveRecord
   ActiveRecord::Base.class_eval do
